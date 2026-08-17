@@ -1,0 +1,132 @@
+name: Production Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    - name: Install Protobuf Compiler
+      run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Decode Keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/release-keystore.jks
+
+    - name: Build Release APK
+      run: ./gradlew assembleRelease --no-daemon
+      env:
+        KEYSTORE_PATH: ${{ github.workspace }}/release-keystore.jks
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        LAST_FM_API_KEY: ${{ secrets.LAST_FM_API_KEY }}
+        LAST_FM_SHARED_SECRET: ${{ secrets.LAST_FM_SHARED_SECRET }}
+
+    - name: Generate Release Notes
+      id: release_notes
+      run: |
+        VERSION=$(jq -r '.releases[0].versionName' updater/changelog.json)
+        DATE=$(jq -r '.releases[0].date' updater/changelog.json)
+        DESCRIPTION=$(jq -r '.releases[0].description' updater/changelog.json)
+
+        # Fail fast on a missing/null version so we never publish a broken "v" tag.
+        if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+          echo "::error::versionName missing or null in updater/changelog.json"
+          exit 1
+        fi
+
+        # Derive the target SDK from the build file instead of hardcoding it,
+        # so this release note can't drift from app/build.gradle.kts.
+        TARGET_SDK=$(grep -oE 'targetSdk[[:space:]]*=[[:space:]]*[0-9]+' app/build.gradle.kts | grep -oE '[0-9]+' | head -1)
+        TARGET_SDK=${TARGET_SDK:-unknown}
+        
+        # Format the description: convert bullet points to markdown lists
+        FORMATTED_DESC=$(echo "$DESCRIPTION" | sed 's/^• / - /g')
+        
+        # Create the release body file
+        cat > release_body.md << EOF
+        # SuvMusic v$VERSION
+
+        [![Release](https://img.shields.io/github/v/release/suvojeet-sengupta/SuvMusic?style=flat-square&color=0078D4)](https://github.com/suvojeet-sengupta/SuvMusic/releases/latest)
+        [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android&logoColor=white)](https://developer.android.com)
+        [![License](https://img.shields.io/github/license/suvojeet-sengupta/SuvMusic?style=flat-square&color=404040)](LICENSE)
+
+        ---
+
+        ### Release Overview
+        - **Version:** $VERSION
+        - **Build Date:** $DATE
+        - **Target SDK:** $TARGET_SDK
+        - **Status:** Stable Release
+
+        ---
+
+        ### Implementation Details
+        $FORMATTED_DESC
+
+        ---
+
+        ### Contribution & Support
+        The development of SuvMusic is maintained through community support. If you find value in this project, consider supporting through the following channels:
+
+        - **Support via Coindrop:** [https://coindrop.to/suvojeet_sengupta](https://coindrop.to/suvojeet_sengupta)
+        - **Direct Support (UPI):** \`suvojitsengupta21-3@okicici\`
+        
+        ---
+
+        ### Maintainer
+        **Suvojeet Sengupta**  
+        Lead Android Developer  
+        [GitHub Profile](https://github.com/suvojeet-sengupta)  
+        [Email](mailto:suvojeet@suvojeetsengupta.in)
+
+        ---
+        *This release was automatically generated as part of the SuvMusic continuous integration pipeline.*
+        EOF
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Extract Build Artifacts
+      id: extract_builds
+      run: |
+        VERSION="${{ steps.release_notes.outputs.version }}"
+        APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+
+        cp "$APK_FILE" "SuvMusic-v$VERSION.apk"
+
+        echo "apk_path=SuvMusic-v$VERSION.apk" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ steps.release_notes.outputs.version }}
+        name: SuvMusic v${{ steps.release_notes.outputs.version }}
+        body_path: release_body.md
+        draft: false
+        prerelease: false
+        make_latest: true
+        fail_on_unmatched_files: true
+        files: |
+          ${{ steps.extract_builds.outputs.apk_path }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

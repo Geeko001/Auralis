@@ -1,0 +1,35 @@
+*.iml
+.gradle
+/local.properties
+.claude/
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Keystore and secrets
+*.jks
+*.keystore
+keystore-base64.txt
+
+
+Metrolist/
+metroserver/
+
+# Qoder AI
+.qoder/
+
+# MCP server scratch dir (local tooling, not part of the build)
+mcps/
+
+# Captured device logs — must not be checked in
+suvmusic_*.log
+suvmusic_bug_report_*.txt
