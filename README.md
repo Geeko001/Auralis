@@ -1,3 +1,5 @@
+Auralis is an independently maintained fork of the open-source SuvMusic project. This project is not the original SuvMusic app, but a community fork that builds upon it. All credit for the original work goes to the SuvMusic contributors
+
 <!-- 
   SEO METADATA
   Keywords: SuvMusic, Suvojeet Sengupta, Music Streaming, Android, Jetpack Compose, Native Audio Engine, High-Resolution Audio, Open Source, C++ JNI, WSOLA, Parametric EQ, Spatial Audio, Material 3, Listen Together, Spotify Migration, ACRA, NewPipe Extractor
